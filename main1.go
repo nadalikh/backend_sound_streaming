@@ -3,8 +3,10 @@ package main
 import (
 	"fmt"
 	"github.com/gorilla/websocket"
+	"github.com/hajimehoshi/go-mp3"
 	"io"
 	"log"
+	"math"
 	"net/http"
 	"os"
 	"sync"
@@ -36,11 +38,25 @@ func streamMusic(conn *websocket.Conn) {
 	if err != nil {
 		panic(err)
 	}
+	status, err := file.Stat()
+	if err != nil {
+		panic(err)
+	}
+	soundSize := status.Size()
+	decoder, err := mp3.NewDecoder(file)
+	if err != nil {
+		log.Fatalf("Error decoding MP3: %v", err)
+	}
 
-	buf := make([]byte, 32*1024) // 32KB buffer
+	// Get the total duration in seconds
+	soundDuration := int64(math.Floor(float64(decoder.Length()) / float64(decoder.SampleRate()) / 4))
+	bytesPerSecond := soundSize / soundDuration
+	fmt.Println(bytesPerSecond)
+
+	buf := make([]byte, bytesPerSecond) // 32KB buffer
 	for {
 		i = i + 1
-		fmt.Println(i)
+
 		time.Sleep(1000 * time.Millisecond)
 
 		n, err := file.Read(buf)
@@ -82,7 +98,7 @@ func broadcastMessage() {
 	for {
 		chunk := <-data
 		i1 = i1 + 1
-		fmt.Println("i2: ", i1)
+
 		mutex.Lock()
 
 		for conn := range connections {
